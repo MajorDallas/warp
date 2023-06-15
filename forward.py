@@ -26,8 +26,10 @@ forwarding (the openssh -L option) from a local port through a tunneled
 connection to a destination reachable from the SSH server machine.
 """
 
-from config import *
 import select
+
+from config import *
+
 try:
     import SocketServer
 except ImportError:
@@ -39,30 +41,40 @@ DEFAULT_PORT = 4000
 g_verbose = True
 
 
-class ForwardServer (SocketServer.ThreadingTCPServer):
+class ForwardServer(SocketServer.ThreadingTCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
 
-class Handler (SocketServer.BaseRequestHandler):
-
+class Handler(SocketServer.BaseRequestHandler):
     def handle(self):
         try:
-            chan = self.ssh_transport.open_channel('direct-tcpip',
-                                                   (self.chain_host, self.chain_port),
-                                                   self.request.getpeername())
+            chan = self.ssh_transport.open_channel(
+                "direct-tcpip",
+                (self.chain_host, self.chain_port),
+                self.request.getpeername(),
+            )
         except Exception as e:
-            verbose('Incoming request to %s:%d failed: %s' % (self.chain_host,
-                                                              self.chain_port,
-                                                              repr(e)))
+            verbose(
+                "Incoming request to %s:%d failed: %s"
+                % (self.chain_host, self.chain_port, repr(e))
+            )
             return
         if chan is None:
-            verbose('Incoming request to %s:%d was rejected by the SSH server.' %
-                    (self.chain_host, self.chain_port))
+            verbose(
+                "Incoming request to %s:%d was rejected by the SSH server."
+                % (self.chain_host, self.chain_port)
+            )
             return
 
-        verbose('Connected!  Tunnel open %r -> %r -> %r' % (self.request.getpeername(),
-                                                            chan.getpeername(), (self.chain_host, self.chain_port)))
+        verbose(
+            "Connected!  Tunnel open %r -> %r -> %r"
+            % (
+                self.request.getpeername(),
+                chan.getpeername(),
+                (self.chain_host, self.chain_port),
+            )
+        )
         while True:
             r, w, x = select.select([self.request, chan], [], [])
             if self.request in r:
@@ -70,7 +82,7 @@ class Handler (SocketServer.BaseRequestHandler):
                 if len(data) == 0:
                     break
                 try:
-                  chan.send(data)
+                    chan.send(data)
                 except EOFError:
                     logger.debug("Chanel closed")
             if chan in r:
@@ -82,18 +94,19 @@ class Handler (SocketServer.BaseRequestHandler):
         peername = self.request.getpeername()
         chan.close()
         self.request.close()
-        verbose('Tunnel closed from %r' % (peername,))
+        verbose("Tunnel closed from %r" % (peername,))
 
 
 def forward_tunnel(local_port, remote_host, remote_port, transport):
     # this is a little convoluted, but lets me configure things for the Handler
     # object.  (SocketServer doesn't give Handlers any way to access the outer
     # server normally.)
-    class SubHander (Handler):
+    class SubHander(Handler):
         chain_host = remote_host
         chain_port = remote_port
         ssh_transport = transport
-    server = ForwardServer(('', local_port), SubHander)
+
+    server = ForwardServer(("", local_port), SubHander)
     return server
 
 

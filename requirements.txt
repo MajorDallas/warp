@@ -1,8 +1,8 @@
-Cython==0.20.1
-paramiko==1.13.0
-plac==0.9.1 
-ecdsa==0.11
+Cython
+paramiko
+plac
+ecdsa
 udt4py==1.2
-rpyc==3.3.0
-blessings==1.6.0
-mock=1.0.1
+rpyc
+blessings
+mock
