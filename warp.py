@@ -59,9 +59,7 @@ def main(
 
     # Start an ssh connection used by the xmlrpc connection,
     # the comm_port is used for port forwarding.
-    connection = Connection(
-        hostname=hostname, username=username, ssh_port=ssh_port
-    )
+    connection = Connection(hostname=hostname, username=username, ssh_port=ssh_port)
     connection.connect()
 
     # get the rpc channel
@@ -86,9 +84,7 @@ def main(
     start_thread = controller.start()
 
     gui.files_processed_indicator.set_update(lambda: controller.files_processed)
-    gui.files_sent_indicator.set_update(
-        lambda: controller.get_files_transfered()
-    )
+    gui.files_sent_indicator.set_update(lambda: controller.get_files_transfered())
 
     start_thread.join()
     gui.progress_bar.set_update(

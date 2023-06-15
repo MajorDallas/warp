@@ -21,9 +21,7 @@ class WarpInterface(object):
 
         self.status_line = Line()
         self.files_sent_indicator = CounterComponent(format="Sent {} files. ")
-        self.files_processed_indicator = CounterComponent(
-            format="Processed {} files."
-        )
+        self.files_processed_indicator = CounterComponent(format="Processed {} files.")
         self.status_line.add_component(self.files_sent_indicator)
         self.status_line.add_component(self.files_processed_indicator)
         self.screen.add_line(self.status_line, to_bottom=True)
@@ -52,12 +50,12 @@ class Screen(object):
     def redraw(self):
         print(self.term.clear())
 
-        for n, line in self.top_lines.iteritems():
+        for n, line in self.top_lines.items():
             with self.term.location(0, n):
                 for component in line:
                     print(str(component)),
 
-        for n, line in self.bottom_lines.iteritems():
+        for n, line in self.bottom_lines.items():
             with self.term.location(0, self.term.height - n):
                 for component in line:
                     print(str(component)),
@@ -166,10 +164,7 @@ class ProgressComponent(Component):
         self.value = (expected_size, progress, False)
 
     def updateCallback(self):
-        if (
-            self.progress > self.lastProgress[1]
-            and time.time() != self.lastUpdated
-        ):
+        if self.progress > self.lastProgress[1] and time.time() != self.lastUpdated:
             self.lastProgress[0] = self.lastProgress[1]
             self.lastProgress[1] = self.progress
             self.timeDiff = time.time() - self.lastUpdated
@@ -202,14 +197,10 @@ class ProgressComponent(Component):
         )
         speed = 0
         if self.timeDiff != 0:
-            speed = (
-                self.lastProgress[1] - self.lastProgress[0]
-            ) / self.timeDiff
+            speed = (self.lastProgress[1] - self.lastProgress[0]) / self.timeDiff
         # speed is currently in bytes per second
         k = self.printableUnits(speed)
-        progress += (
-            " " + "{0:.3f}".format(speed / pow(1000, k)) + self.units[k] + "/s"
-        )
+        progress += " " + "{0:.3f}".format(speed / pow(1000, k)) + self.units[k] + "/s"
 
         width = self.term.width - len(self.label) - 5 - len(progress)
         if self.expected_size != 0:
