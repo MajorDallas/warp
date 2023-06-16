@@ -1,6 +1,6 @@
 import rpyc
 
-from config import *
+from config import logger
 from server_udt_manager import ServerUDTManager
 from transfer_manager import TransferManager
 

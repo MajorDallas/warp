@@ -40,14 +40,16 @@ def fail(msg):
 # from: http://stackoverflow.com/questions/2281850/timeout-function-if-it-takes-too-long-to-finish
 
 
-class TimeoutError(Exception):
+# renamed so as not to conflict with stdlib's TimeoutError.
+class ApplicationTimeoutError(Exception):
     pass
 
 
+# This doesn't appear to be used anywhere...
 def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
     def decorator(func):
         def _handle_timeout(signum, frame):
-            raise TimeoutError(error_message)
+            raise ApplicationTimeoutError(error_message)
 
         def wrapper(*args, **kwargs):
             signal.signal(signal.SIGALRM, _handle_timeout)

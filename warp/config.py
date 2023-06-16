@@ -2,15 +2,10 @@
 # In the future consider moving some of this to a "non-executable"
 # configuration file.
 
-# some logging setup
 import logging
 
-import __main__ as main
 
 LOG_LEVEL = logging.INFO
-
-if main.__file__ == "server.py" or main.__file__ == "./server.py":
-    LOG_LEVEL = logging.DEBUG
 
 logging.basicConfig(format="%(levelname)s: %(message)s", level=LOG_LEVEL)
 

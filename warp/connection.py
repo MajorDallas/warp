@@ -27,26 +27,40 @@ class Connection:
         self.ssh_port = ssh_port
 
     def connect_ssh(self):
+        """Initiate an SSH connection using the information passed to the
+        instance constructor. Upon successful connection, run the `warp-server`
+        command on the remote host.
+        """
         self.client = SSHClient()
-        self.client.load_system_host_keys()
         self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            self.client.load_system_host_keys()
+        except paramiko.hostkeys.InvalidHostKey:
+            logger.critical(
+                "A key in known_hosts could not be parsed. This likely does NOT"
+                " mean there is a bad key--Paramiko's host key parser is"
+                " limited to plain host keys: no commands, cert-authority,"
+                " or anything other than the host list, key type, and key."
+                " Check for such keys and move them into a temporary back-up"
+                " file, then try again. See Github issues #771 and #386"
+                " for details and, god willing, updates."
+            )
+            raise
 
         try:
+            # Attempt connecting with ssh-agent or default keys, if available.
             self.client.connect(
                 self.hostname, username=self.username, port=self.ssh_port
             )
-            sshin1, sshout1, ssherr1 = self.client.exec_command("warp-server")
-            self.comm_port = int(ssherr1.read(5))
         except (
             paramiko.PasswordRequiredException,
             paramiko.AuthenticationException,
             paramiko.ssh_exception.SSHException,  # type: ignore
         ):
+            # Fallback to password auth.
             password = getpass.getpass(
                 "Password for %s@%s: " % (self.username, self.hostname)
             )
-            (sshin1, sshout1, ssherr1) = self.client.exec_command("warp-server")
-            self.comm_port = int(ssherr1.read(5))
             try:
                 self.client.connect(
                     self.hostname,
@@ -55,10 +69,24 @@ class Connection:
                     password=password,
                 )
             except paramiko.AuthenticationException:
-                logger.exception("Permission denied")
-                sys.exit(1)
+                logger.exception(
+                    "SSH Authentication Failed. Tried: pubkey, password."
+                )
+                raise
+        (sshin1, sshout1, ssherr1) = self.client.exec_command("warp-server")
+        if err := ssherr1.read(500):
+            raise RuntimeError(
+                "Execution of 'warp-server' on the remote host may have failed."
+                " This message was printed to stderr (truncated to 500 bytes):"
+                f"\n\n{err.decode(errors='replace')}"
+            )
+        self.comm_port = int(sshout1.read(5))
 
     def connect(self):
+        """Start a UDT listener on the remote host using Connection.connect_ssh,
+        establish a UDT connection to it, and return the rpyc.Connection through
+        which data can be dumped into the UDT tunnel.
+        """
         self.connect_ssh()
 
         # Now we start the port forwarding

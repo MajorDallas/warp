@@ -5,7 +5,7 @@ from typing import Union
 from common_tools import getHash
 from config import CHUNK_SIZE, logger
 
-from .transfer_manager import TransferManager
+from transfer_manager import TransferManager
 
 
 # From http://theorangeduck.com/page/synchronized-python

@@ -13,10 +13,10 @@ from os.path import expanduser
 import plac
 from rpyc.utils.server import ThreadedServer
 
-from common_tools import *
-from config import *
+from config import logger
 from server_transfer_controller import ServerTransferController
 
+logger.setLevel("DEBUG")
 logger.propagate = True
 
 
@@ -28,8 +28,8 @@ def main():
         port=0,
         protocol_config={"allow_public_attrs": True},
     )
-    sys.stderr.write(str(server.port))
-    sys.stderr.write("     ")
+    sys.stdout.write(str(server.port))
+    sys.stdout.write("     ")
     server.start()
 
 
