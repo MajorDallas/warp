@@ -1,7 +1,11 @@
-from config import CHUNK_SIZE, logger
-from common_tools import getHash
-import threading
 import os
+import threading
+from typing import Union
+
+from common_tools import getHash
+from config import CHUNK_SIZE, logger
+
+from .transfer_manager import TransferManager
 
 
 # From http://theorangeduck.com/page/synchronized-python
@@ -21,6 +25,10 @@ def synchronized(method):
 
 
 class FileTransferAgent:
+    _base_server_file_size: Union[int, float]
+    _base_server_validated_size: Union[int, float]
+    _file_size: int
+
     def __init__(
         self,
         udt,
@@ -35,23 +43,23 @@ class FileTransferAgent:
         self.file_name = file_name
         self.verify = verify
         self.stat = stat
-        self.is_transfering = False
+        self.is_transferring = False
         self.transfer_finished = False
         self.transfer_success = False
         self.is_verifying = False
         self.udt = udt
-        self.transfer_manager = transfer_manager
+        self.transfer_manager: TransferManager = transfer_manager
         self.createDirs = createDirs
         self.block_count = 0
 
     def get_progress(self):
         if self.is_verifying or (
-            self.is_transfering is False and self.transfer_finished is True
+            self.is_transferring is False and self.transfer_finished is True
         ):
             return self.file_size
-        elif self.is_transfering is False and self.transfer_finished is False:
+        elif self.is_transferring is False and self.transfer_finished is False:
             return self.base_server_validated_size
-        elif self.is_transfering is True and self.transfer_finished is False:
+        elif self.is_transferring is True and self.transfer_finished is False:
             return self.udt.get_total_recieved()
         return 0
 
@@ -59,12 +67,15 @@ class FileTransferAgent:
     def get_server_file_size(self):
         if not hasattr(self, "_base_server_file_size"):
             self._base_server_file_size = (
-                self.transfer_manager.get_size_and_init_file_path(self.server_file_path)
+                self.transfer_manager.get_size_and_init_file_path(
+                    self.server_file_path
+                )
             )
-
         return self._base_server_file_size
 
-    base_server_file_size = property(get_server_file_size)
+    @property
+    def base_server_file_size(self) -> Union[int, float]:
+        return self.get_server_file_size()
 
     @synchronized
     def get_server_validated_size(self):
@@ -76,11 +87,9 @@ class FileTransferAgent:
                         self.server_file_path
                     )
                 file_hash = self.transfer_manager.get_file_hash(
-                    self.server_file_path, self.block_count
+                    self.server_file_path
                 )
-                if not self.verify_partial_hash(
-                    self.file_name, file_hash, self.block_count
-                ):
+                if not self.verify_partial_hash(self.file_name, file_hash):
                     logger.debug("Client and server side partial hash differ.")
                     self.transfer_manager.overwrite_file(self.server_file_path)
                     self.block_count = 0
@@ -88,8 +97,10 @@ class FileTransferAgent:
                     logger.debug("File already transfered")
                     self.transfer_finished = True
                     self.transfer_success = True
-                    self.is_transfering = False
-                    self._base_server_validated_size = self.base_server_file_size
+                    self.is_transferring = False
+                    self._base_server_validated_size = (
+                        self.base_server_file_size
+                    )
                     return self._base_server_validated_size
             else:
                 # This will create the file on the server side
@@ -97,7 +108,9 @@ class FileTransferAgent:
             self._base_server_validated_size = self.block_count * CHUNK_SIZE
         return self._base_server_validated_size
 
-    base_server_validated_size = property(get_server_validated_size)
+    @property
+    def base_server_validated_size(self) -> Union[int,float]:
+        return self.get_server_validated_size()
 
     @synchronized
     def get_server_file_path(self):
@@ -110,16 +123,20 @@ class FileTransferAgent:
 
         return self._server_file_path
 
-    server_file_path = property(get_server_file_path)
+    @property
+    def server_file_path(self) -> str:
+        return self.get_server_file_path()
 
     @synchronized
-    def get_total_size(self):
+    def get_total_size(self) -> int:
         if not hasattr(self, "_file_size"):
             self._file_size = os.path.getsize(self.file_name)
 
         return self._file_size
 
-    file_size = property(get_total_size)
+    @property
+    def file_size(self) -> int:
+        return self.get_total_size()
 
     def send_file(self):
         logger.debug("Source " + self.file_name + " Dest: " + self.file_dest)
@@ -127,7 +144,7 @@ class FileTransferAgent:
         logger.debug("Saving to... " + self.server_file_path)
 
         if not self.validate_success:
-            self.is_transfering = False
+            self.is_transferring = False
             self.transfer_finished = True
             self.transfer_success = False
             return
@@ -137,7 +154,7 @@ class FileTransferAgent:
             return
 
         self.udt.connect()
-        self.is_transfering = True
+        self.is_transferring = True
         self.udt.send_file(
             self.file_name,
             self.server_file_path,
@@ -150,9 +167,11 @@ class FileTransferAgent:
             self.transfer_manager.set_timestamps(
                 self.server_file_path, (stats.st_atime, stats.st_mtime)
             )
-            self.transfer_manager.set_protection(self.server_file_path, stats.st_mode)
+            self.transfer_manager.set_protection(
+                self.server_file_path, stats.st_mode
+            )
 
-        self.is_transfering = False
+        self.is_transferring = False
 
         if self.verify:
             self.is_verifying = True
@@ -172,10 +191,10 @@ class FileTransferAgent:
     def file_block_count(self, file_src):
         return os.path.getsize(file_src) / CHUNK_SIZE
 
-    def verify_partial_hash(self, file_src, partial_hash, block_count=0):
+    def verify_partial_hash(self, file_src, partial_hash):
         """
         Takes a file source and hashes the file up to block count and then
         compares it with the partial hash passed in, fails if they do not match.
         """
-        my_hash = getHash(file_src, block_count)
+        my_hash = getHash(file_src)
         return partial_hash == my_hash

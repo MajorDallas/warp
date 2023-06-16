@@ -12,8 +12,7 @@ import mock
 import plac
 
 from client_transfer_controller import ClientTransferController
-from common_tools import *
-from config import *
+from config import logger
 from connection import Connection
 from progress import WarpInterface
 
@@ -59,11 +58,11 @@ def main(
 
     # Start an ssh connection used by the xmlrpc connection,
     # the comm_port is used for port forwarding.
-    connection = Connection(hostname=hostname, username=username, ssh_port=ssh_port)
-    connection.connect()
-
+    connection = Connection(
+        hostname=hostname, username=username, ssh_port=ssh_port
+    )
     # get the rpc channel
-    channel = connection.channel
+    channel = connection.connect()
 
     controller = ClientTransferController(
         channel,
@@ -84,14 +83,16 @@ def main(
     start_thread = controller.start()
 
     gui.files_processed_indicator.set_update(lambda: controller.files_processed)
-    gui.files_sent_indicator.set_update(lambda: controller.get_files_transfered())
+    gui.files_sent_indicator.set_update(
+        lambda: controller.get_files_transfered()
+    )
 
     start_thread.join()
     gui.progress_bar.set_update(
         lambda: (
-            controller.transfer_size,
-            controller.get_server_received_size(),
-            controller.is_transfer_validating(),
+            controller.transfer_size,  # expected_size / value[0]
+            controller.get_server_received_size(),  # progress / value[1]
+            controller.is_transfer_validating(),  # value[2]
         )
     )
 

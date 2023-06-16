@@ -1,5 +1,9 @@
-from common_tools import *
-from config import *
+import os
+import sys
+from typing import AnyStr, Tuple
+
+from common_tools import getHash
+from config import CHUNK_SIZE, logger
 
 
 class TransferManager:
@@ -12,10 +16,10 @@ class TransferManager:
     def is_file(self, filepath):
         return os.path.isfile(filepath)
 
-    def get_file_hash(self, filepath, block_count=0):
-        return getHash(filepath, block_count)
+    def get_file_hash(self, filepath):
+        return getHash(filepath)
 
-    def get_blocks(self, filepath):
+    def get_blocks(self, filepath: AnyStr) -> float:
         return os.path.getsize(filepath) / CHUNK_SIZE
 
     def create_dir(self, directory):
@@ -57,20 +61,21 @@ class TransferManager:
     def finish(self):
         sys.exit()
 
-    def validate_filepath(self, filepath, client_path, create_dirs):
+    def validate_filepath(
+        self, filepath: str, client_path: str, create_dirs
+    ) -> Tuple[bool, str]:
         """
         Validates the filepath, and returns the correct path
         """
         (head, tail) = os.path.split(filepath)
         if not tail:
             if not os.path.exists(head):
-                result = "Directory " + head + " does not exist."
+                result = f"Directory {head} does not exist."
                 logger.exception(result)
                 return (False, result)
             else:
-                (client_head, client_tail) = os.path.split(client_path)
+                _, client_tail = os.path.split(client_path)
                 return (True, os.path.join(head, client_tail))
-
         elif head != "" and not os.path.exists(head):
             if create_dirs:
                 try:
@@ -78,12 +83,12 @@ class TransferManager:
                 except OSError:
                     pass
                 return (True, filepath)
-            result = filepath + ": No such file or directory"
+            result = f"{filepath}: No such file or directory"
             logger.exception(result)
             return (False, result)
 
         elif not head and os.path.isdir(tail):
-            (client_head, client_tail) = os.path.split(client_path)
+            _, client_tail = os.path.split(client_path)
             return (True, os.path.join(tail, client_tail))
 
         return (True, filepath)

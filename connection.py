@@ -1,11 +1,16 @@
+import getpass
+import logging
 import sys
-from config import *
-from common_tools import *
-from paramiko import SSHClient
-import paramiko, getpass
 import threading
-from forward import *
+from typing import Optional, cast
+
+import paramiko
 import rpyc
+from paramiko import SSHClient
+
+from common_tools import fail
+from config import logger
+from forward import forward_tunnel
 
 hostkeytype = None
 hostkey = None
@@ -16,7 +21,7 @@ logging.getLogger("paramiko").setLevel(logging.WARNING)
 
 class Connection:
     def __init__(self, hostname, username, ssh_port=22):
-        self.channel = None
+        self.channel: Optional[rpyc.Connection] = None
         self.hostname = hostname
         self.username = username
         self.ssh_port = ssh_port
@@ -30,12 +35,12 @@ class Connection:
             self.client.connect(
                 self.hostname, username=self.username, port=self.ssh_port
             )
-            (sshin1, sshout1, ssherr1) = self.client.exec_command("warp-server")
+            sshin1, sshout1, ssherr1 = self.client.exec_command("warp-server")
             self.comm_port = int(ssherr1.read(5))
         except (
             paramiko.PasswordRequiredException,
             paramiko.AuthenticationException,
-            paramiko.ssh_exception.SSHException,
+            paramiko.ssh_exception.SSHException,  # type: ignore
         ):
             password = getpass.getpass(
                 "Password for %s@%s: " % (self.username, self.hostname)
@@ -49,8 +54,8 @@ class Connection:
                     port=self.ssh_port,
                     password=password,
                 )
-            except paramiko.AuthenticationException as message:
-                logger.error("Permission denied" + message)
+            except paramiko.AuthenticationException:
+                logger.exception("Permission denied")
                 sys.exit(1)
 
     def connect(self):
@@ -60,14 +65,19 @@ class Connection:
         channel = forward_tunnel(
             0, "127.0.0.1", self.comm_port, self.client.get_transport()
         )
-        self.forward_thread = threading.Thread(target=start_tunnel, args=(channel,))
+        self.forward_thread = threading.Thread(
+            target=start_tunnel, args=(channel,)
+        )
         self.forward_thread.setDaemon(True)
         self.forward_thread.start()
 
-        self.channel = rpyc.connect(
-            "localhost",
-            port=channel.socket.getsockname()[1],
-            config={"allow_public_attrs": True},
+        self.channel = cast(
+            rpyc.Connection,
+            rpyc.connect(
+                "localhost",
+                port=channel.socket.getsockname()[1],
+                config={"allow_public_attrs": True},
+            ),
         )
 
         return self.channel
@@ -78,8 +88,9 @@ class Connection:
 
     @staticmethod
     def unpack_remote_host(remote_host):
-        """
-        Parses the hostname and breaks it into host and user. Modified from paramiko
+        """Parses the hostname and breaks it into host and user.
+
+        Modified from paramiko.
         """
         username = ""
         hostname = ""

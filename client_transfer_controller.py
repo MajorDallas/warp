@@ -2,16 +2,19 @@ import os
 import threading
 from functools import reduce
 from multiprocessing.pool import ThreadPool
+from typing import List, Tuple
 
 from client_udt_manager import ClientUDTManager
-from common_tools import *
+from common_tools import fail
+from config import logger
 from file_transfer_agent import FileTransferAgent
+from rpyc import Connection
 
 
 class ClientTransferController:
     def __init__(
         self,
-        server_channel,
+        server_channel: Connection,
         hostname,
         file_src,
         file_dest,
@@ -33,7 +36,7 @@ class ClientTransferController:
         self.parallelism = parallelism
         self.follow_links = follow_links
         self.stat = stat
-        self.transfer_agents = []
+        self.transfer_agents: List[FileTransferAgent] = []
         self.start_success = None
 
         self.files_processed = 0
@@ -50,7 +53,9 @@ class ClientTransferController:
             fail(str(self.file_src) + " is a directory")
         if os.path.isfile(self.file_src) and self.recursive:
             fail(str(self.file_src) + " is a file")
-        if not os.path.isfile(self.file_src) and not os.path.isdir(self.file_src):
+        if not os.path.isfile(self.file_src) and not os.path.isdir(
+            self.file_src
+        ):
             fail("Source file not found")
 
         pool = ThreadPool(processes=self.parallelism)
@@ -58,7 +63,9 @@ class ClientTransferController:
         if not self.recursive:
             try:
                 transfer_agent = FileTransferAgent(
-                    ClientUDTManager(self.server_channel, self.hostname, self.tcp_mode),
+                    ClientUDTManager(
+                        self.server_channel, self.hostname, self.tcp_mode
+                    ),
                     transfer_manager,
                     self.file_src,
                     self.file_dest,
@@ -77,13 +84,15 @@ class ClientTransferController:
             for directory, subdirs, files in os.walk(
                 self.file_src, followlinks=self.follow_links
             ):
-                # Make sure the directory we use on the server starts where we want it to
-                # Instead of having the same path the client has
+                # Make sure the directory we use on the server starts where we
+                # want it to instead of having the same path the client has.
                 server_directory = os.path.relpath(directory, self.file_src)
                 if str(server_directory) == ".":
                     server_directory = ""
                 for f in files:
-                    file_dest = os.path.join(self.file_root_dest, server_directory, f)
+                    file_dest = os.path.join(
+                        self.file_root_dest, server_directory, f
+                    )
                     file_src = os.path.join(directory, f)
                     try:
                         transfer_agent = FileTransferAgent(
@@ -113,14 +122,11 @@ class ClientTransferController:
 
     def get_server_received_size(self):
         pool = ThreadPool(processes=20)
-
         res = pool.map(lambda x: x.get_progress(), self.transfer_agents)
-
         pool.close()
-
         return reduce(lambda x, y: x + y, res, 0)
 
-    def is_transfer_validating(self):
+    def is_transfer_validating(self) -> bool:
         pool = ThreadPool(processes=20)
 
         res = pool.map(
@@ -129,7 +135,7 @@ class ClientTransferController:
         )
 
         pool.close()
-        status = reduce(
+        status: Tuple[bool, bool] = reduce(
             lambda x, y: x if y[0] is True else (x[0] or y[1], x[1] and y[1]),
             res,
             (False, True),
