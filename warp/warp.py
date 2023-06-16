@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 This is the main driver script that will run on the client.
@@ -42,21 +42,19 @@ def main(
     verbose=False,
     parallelism=3,
 ):
-    # Extract the username and hostname from the arguments,
-    # the ssh_port does not need to be specified, will default to 22.
-    username, hostname, ssh_port = Connection.unpack_remote_host(remote_host)
-
     if verbose:
         logger.setLevel(logging.DEBUG)
         global gui
         gui = mock.Mock()
-
     startTime = time.time()
+    # Extract the username and hostname from the arguments,
+    # the ssh_port does not need to be specified, will default to 22.
+    username, hostname, ssh_port = Connection.unpack_remote_host(remote_host)
 
     # Start up the user interface
     gui.redraw()
 
-    # Start an ssh connection used by the xmlrpc connection,
+    # Start an ssh connection used by the xmlrpc connection.
     # the comm_port is used for port forwarding.
     connection = Connection(
         hostname=hostname, username=username, ssh_port=ssh_port
@@ -86,7 +84,6 @@ def main(
     gui.files_sent_indicator.set_update(
         lambda: controller.get_files_transfered()
     )
-
     start_thread.join()
     gui.progress_bar.set_update(
         lambda: (
@@ -97,14 +94,11 @@ def main(
     )
 
     success = False
-
     if controller.start_success:
         gui.log_message("Start success.")
-
         while not controller.is_transfer_finished():
             gui.redraw()
             time.sleep(0.1)
-
         if controller.is_transfer_success():
             logger.debug("Done with transfer.")
             success = True
@@ -130,6 +124,8 @@ def main(
 if __name__ == "__main__":
     try:
         plac.call(main)
+    except RuntimeError as e:
+        print(e, file=sys.stderr)
     except KeyboardInterrupt:
         gui.exit()
         logger.warn("Transfer canceled")
